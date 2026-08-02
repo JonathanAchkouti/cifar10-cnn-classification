@@ -1,4 +1,4 @@
-run_name: 'resnet9_full'
+run_name: 'resnet9_50ep'
 
 model:
   name: 'resnet9'          # 'simplenet' or 'resnet9'
@@ -11,7 +11,7 @@ data:
   root: 'data/cifar10'
 
 hyperparameters:
-  epochs: 30
+  epochs: 50
   batch_size: 512
   max_lr: 0.4              # peak of the one-cycle schedule
   momentum: 0.9
