@@ -1,13 +1,27 @@
+run_name: 'resnet9_full'
+
+model:
+  name: 'resnet9'          # 'simplenet' or 'resnet9'
+
+data:
+  val_split: 0.1
+  augment: true            # random crop + horizontal flip
+  cutout: true             # random erasing, applied after normalization
+  num_workers: 2           # Colab VMs only have 2 vCPUs
+  root: 'data/cifar10'
+
 hyperparameters:
-  epochs: 10
-  batch_size: 8
+  epochs: 30
+  batch_size: 512
+  max_lr: 0.4              # peak of the one-cycle schedule
+  momentum: 0.9
+  weight_decay: 0.0005
+  label_smoothing: 0.1
+  seed: 42
 
-  lr: 0.001
-  momentum: 0.9 
-
-  num_workers: 8
+eval:
+  tta: true                # average logits over image + horizontal flip
 
 paths:
-  train_dir: 'data/cifar10/train'
-  test_dir: 'data/cifar10/test'
   model_path: 'weights/checkpoint.pth'
+  results_path: 'results.csv'
