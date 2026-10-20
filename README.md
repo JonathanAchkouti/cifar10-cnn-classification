@@ -131,12 +131,54 @@ compared to documenting the work.
 **Honest validation.** Validation 95.20% against test 95.06%, a gap of 0.14%.
 The split is representative and the test set was not leaked into any decision.
 
+## Comparison: from-scratch ResNet-9 vs. pretrained Vision Transformer
+
+As a follow-up experiment, the `vit/` folder fine-tunes an ImageNet-pretrained
+Vision Transformer (ViT-B/16, `vit_base_patch16_224.augreg2_in21k_ft_in1k` from
+`timm`) on the same CIFAR-10 splits, using the same training and evaluation
+pipeline. The two approaches answer different questions: ResNet-9 shows how far
+a small network trained from scratch can go, while the ViT shows what transfer
+learning from millions of external images adds.
+
+| | ResNet-9 (from scratch) | ViT-B/16 (fine-tuned) |
+|---|---|---|
+| Initialization | Random | Pretrained on ImageNet-21k, fine-tuned on ImageNet-1k |
+| Parameters | 6.6M | ~86M |
+| Input resolution | 32×32 (native) | 224×224 (bicubic upsampling) |
+| Normalization | CIFAR-10 statistics | The checkpoint's own statistics, read from `timm` |
+| Optimizer | SGD + Nesterov, peak LR 0.4 | AdamW, peak LR 1e-4 (4000× smaller) |
+| Schedule | One-cycle, 30–50 epochs | One-cycle with a short 10% warmup, 3 epochs |
+| Batch size | 512 | 64 (224×224 inputs are 49× more pixels) |
+| Regularization | Augmentation + cutout, label smoothing, weight decay 5e-4 | Augmentation, label smoothing, weight decay 0.01 (no cutout: 3 epochs is too short to overfit) |
+| External data | None | ImageNet-21k / ImageNet-1k |
+
+Key design points in the ViT pipeline:
+
+- **Matching the pretraining preprocessing.** `build_model` returns the
+  normalization statistics and input size alongside the model, because a
+  pretrained network must see inputs preprocessed the way it was during
+  pretraining. Feeding it CIFAR-10 statistics would shift every input away from
+  the distribution its features expect.
+- **A much smaller learning rate.** The weights are already good; large steps
+  would destroy the pretrained features rather than adapt them.
+- **Same evaluation protocol.** Best-validation checkpointing, a single test
+  evaluation and flip test-time augmentation, so the results are directly
+  comparable with the ResNet-9 runs and land in the same `results.csv` format.
+
+Running it:
+
+```bash
+pip install timm
+cd vit
+python train.py --config config_vit.yaml
+```
+
 ## Reproducing
 
 ```bash
-git clone https://github.com/JonathanAchkouti/cnn_assignment.git
-cd cnn_assignment
-pip install -r requirements.txt   # or: uv sync
+git clone https://github.com/JonathanAchkouti/cifar10-cnn-classification.git
+cd cifar10-cnn-classification
+uv sync                           # or: pip install -e .
 python train.py                   # reads config.yaml
 ```
 
@@ -155,12 +197,12 @@ data.py       Transforms, CIFAR-10 statistics, train/val/test loaders
 model.py      SimpleNet (original baseline) and ResNet-9
 train.py      Training loop, evaluation, checkpointing, results logging
 results.csv   One row per run, appended automatically
+vit/          Pretrained ViT-B/16 fine-tuning (same pipeline, timm backbone)
 ```
 
 ## Possible next steps
 
 - Longer training — the model is still slightly underfitting at 50 epochs.
 - Mixup or CutMix, which typically add a few tenths of a percent.
-- Fine-tuning an ImageNet-pretrained backbone, which reaches 98%+ but borrows
-  knowledge from millions of external images rather than demonstrating
-  from-scratch training.
+- Combining the two: knowledge distillation from the fine-tuned ViT into
+  the small ResNet-9.
